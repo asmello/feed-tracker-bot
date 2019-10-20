@@ -1,7 +1,8 @@
+from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy.orm import relationship
+
 from . import Base
 
-from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import relationship
 
 class Feed(Base):
 	__tablename__ = 'feeds'
@@ -13,6 +14,8 @@ class Feed(Base):
 	subtitle = Column(String)
 	language = Column(String)
 	ttl = Column(Integer)
+	updated_at = Column(DateTime)
+	notified_at = Column(DateTime)
 
 	entries = relationship('Entry', back_populates='feed', cascade="all, delete, delete-orphan")
 

@@ -5,10 +5,12 @@ import telegram
 import psycopg2
 import feedparser
 
+from datetime import datetime
+from sqlalchemy import sql
 from sqlalchemy.dialects import postgresql as pg 
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-from .schemas import Feed, Entry
+from .schemas import Feed, Entry, UserFeed
 from .util import dget
 
 
@@ -19,8 +21,24 @@ def process_db_updates(bot, payload):
 		if event['action'] == 'INSERT':
 			entry = event['entry']
 			feed = event['feed']
+			feeds = Feed.__table__
+			db_session = bot.db_session
+
+			# Record metadata for last time notifications were issued
+			db_session.execute(feeds.update().where(feeds.c.db_id == feed['db_id']), {"notified_at": datetime.now()})
+			db_session.commit()
+
+			if not feed['notified_at']:
+				logging.info(
+					"Ignoring notification for new entry=%s in feed=%s (first update)", entry['db_id'], feed['db_id']
+				)
+				return  # this is the first time entries were added for this feed, don't send notifications
+
+			logging.info("Sending out notifications for new entry=%s in feed=%s", entry['db_id'], feed['db_id'])
 			text = f"*{feed['title']}*: [{entry['title']}]({entry['link']})"
-			bot.send_message(chat_id=582104136, text=text, parse_mode=telegram.ParseMode.MARKDOWN)
+
+			for user_feed in db_session.query(UserFeed).filter_by(feed_id=feed['db_id']):
+				bot.send_message(chat_id=user_feed.user_id, text=text, parse_mode=telegram.ParseMode.MARKDOWN)
 
 
 def db_monitor(bot):
@@ -48,15 +66,15 @@ def db_monitor(bot):
 
 def process_urls(context: telegram.ext.CallbackContext):
 
-	session = context.bot.db_session
+	db_session = context.bot.db_session
 
-	for feed in session.query(Feed).all():
+	for feed in db_session.query(Feed).all():
 
 		data = feedparser.parse(feed.href)
 
 		insert_stmt = pg.insert(Entry.__table__)
 
-		session.execute(
+		db_session.execute(
 			insert_stmt.on_conflict_do_update(
 				index_elements=['id'],
 				set_=dict(
@@ -79,4 +97,4 @@ def process_urls(context: telegram.ext.CallbackContext):
 			) for entry in data.entries]
 		)
 
-		session.commit()
+		db_session.commit()

@@ -6,6 +6,7 @@ from .entry import Entry
 from .feed import Feed
 from .user import User
 from .chat import Chat
+from .user_feed import UserFeed
 
 def initialize_db(engine):
 	Base.metadata.create_all(engine)

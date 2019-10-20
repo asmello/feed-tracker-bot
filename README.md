@@ -1,4 +1,4 @@
-# feed-tracker-bot
+# source-bot
 A Telegram bot that tracks your RSS/Atom feeds for you.
 
 ## Notice
@@ -23,5 +23,6 @@ Under initial development. Use at your own peril.
 - Complete feed management
 - Add filtering rules
 - Chat management
+- Add more source types
 - Switch to webhook
 - DB cache layer?

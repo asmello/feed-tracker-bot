@@ -1,16 +1,58 @@
+import json
+import select
+import logging
+import telegram
+import psycopg2
 import feedparser
-import sqlalchemy.dialects.postgresql as pg
-from datetime import datetime
 
-from ..schemas.feed import Feed
-from ..schemas.entry import Entry
-from ..util import dget
+from sqlalchemy.dialects import postgresql as pg 
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+
+from .schemas import Feed, Entry
+from .util import dget
+
+logger = logging.getLogger(__name__)
 
 
-def process(Session, urls):
-	session = Session()
+def process_db_updates(bot, payload):
+	event = json.loads(payload)
 
-	for url in urls:
+	if event['table'] == 'entries':
+		if event['action'] == 'INSERT':
+			entry = event['entry']
+			feed = event['feed']
+			text = f"*{feed['title']}*: [{entry['title']}]({entry['link']})"
+			bot.send_message(chat_id=582104136, text=text, parse_mode='Markdown')
+
+
+def db_monitor(bot):
+	conn = bot.db_engine.raw_connection()
+	try:
+		conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+
+		with conn.cursor() as cursor:
+			cursor.execute("LISTEN events;")
+
+		while True:
+			if select.select([conn], [], [], 5) == ([],[],[]):
+				pass
+			else:
+				conn.poll()
+				while conn.notifies:
+					notify = conn.notifies.pop(0)
+					try:
+						process_db_updates(bot, notify.payload)
+					except Exception as e:
+						logger.exception(e)
+	finally:
+		conn.close()
+
+
+def process_urls(context: telegram.ext.CallbackContext):
+
+	session = context.bot.get_session()
+
+	for url in context.bot.get_feed_urls():
 
 		data = feedparser.parse(url)
 

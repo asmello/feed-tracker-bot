@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 
 import re
-import argparse
 import yaml
-import select
-import psycopg2
+import logging
+import argparse
+import telegram
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from telegram.ext import Updater, CommandHandler
 
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-
+from .bot import Bot
 from .schemas import initialize_db, recreate_db
-from .feed_ingest.process import process as process_sources
-from .feed_notify.process import process as process_updates
-from .feed_notify.push_client import PushClient
+from .methods import db_monitor, process_urls
 from .util import dget, validate_config, get_config
 
+logger = logging.getLogger(__name__)
 
-def setup(args):
+
+def main(args):
+
 	with open(args.config, 'r') as f:
 		config = yaml.safe_load(f)
 	validate_config(config)
@@ -30,40 +30,19 @@ def setup(args):
 	elif args.recreate:
 		recreate_db(engine)
 
-	Session = sessionmaker()
-	Session.configure(bind=engine)
+	bot = Bot(token=get_config(args, config, 'auth.token'), db_engine=engine)
+	bot.urls = config['feeds']
 
-	return config, engine, Session
+	updater = Updater(bot=bot, use_context=True)
+	job_queue = updater.job_queue
+	dispatcher = updater.dispatcher
 
+	dispatcher.run_async(db_monitor, bot)
 
-def main_ingest(args):
-	config, _, Session = setup(args)
-	
-	process_sources(Session, config['feeds'])
+	fetch_feeds_job = job_queue.run_repeating(process_urls, interval=60, first=0)
 
-
-def main_track(args):
-	config, engine, Session = setup(args)
-
-	push_client = PushClient(token=get_config(args, config, 'auth.token'))
-
-	conn = engine.raw_connection()
-	try:
-		conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-
-		with conn.cursor() as cursor:
-			cursor.execute("LISTEN events;")
-
-		while True:
-			if select.select([conn], [], [], 5) == ([],[],[]):
-				pass
-			else:
-				conn.poll()
-				while conn.notifies:
-					notify = conn.notifies.pop(0)
-					process_updates(push_client, notify.payload)
-	finally:
-		conn.close()
+	updater.start_polling()
+	updater.idle()
 
 
 if __name__ == '__main__':
@@ -80,13 +59,4 @@ if __name__ == '__main__':
 		help="Delete all data in the database, and initialize it again upon start."
 	)
 
-	subparsers = parser.add_subparsers(help="Sub-commands")
-
-	parser_ingest = subparsers.add_parser("ingest", help="Actively ingest feed data into database.")
-	parser_ingest.set_defaults(func=main_ingest)
-
-	parser_track = subparsers.add_parser("track", help="Monitor new feed data and send out notifications.")
-	parser_track.set_defaults(func=main_track)
-
-	args = parser.parse_args()
-	args.func(args)
+	main(parser.parse_args())

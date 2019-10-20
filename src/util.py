@@ -32,6 +32,3 @@ def get_config(args, config, setting_path):
 
 def validate_config(config):
 	assert dget(config, 'database.url', type) is str, "Database URL must be supplied."
-	assert dget(config, 'feeds', type) is list, "Feeds must be a list."
-	assert len(dget(config, 'feeds')) > 0, "Feeds must be non-empty."
-	assert type(dget(config, 'feeds')[0]) is str, "Feeds must be a list of strings."

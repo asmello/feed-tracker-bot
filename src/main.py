@@ -8,13 +8,15 @@ import telegram
 
 from sqlalchemy import create_engine
 from telegram.ext import Updater, CommandHandler
+from telegram.utils.request import Request
+
+logging.basicConfig(level=logging.INFO)
 
 from .bot import Bot
+from .commands import register_commands
 from .schemas import initialize_db, recreate_db
 from .methods import db_monitor, process_urls
 from .util import dget, validate_config, get_config
-
-logger = logging.getLogger(__name__)
 
 
 def main(args):
@@ -30,12 +32,13 @@ def main(args):
 	elif args.recreate:
 		recreate_db(engine)
 
-	bot = Bot(token=get_config(args, config, 'auth.token'), db_engine=engine)
-	bot.urls = config['feeds']
+	bot = Bot(token=get_config(args, config, 'auth.token'), db_engine=engine, request=Request(con_pool_size=8))
 
 	updater = Updater(bot=bot, use_context=True)
 	job_queue = updater.job_queue
 	dispatcher = updater.dispatcher
+
+	register_commands(dispatcher)
 
 	dispatcher.run_async(db_monitor, bot)
 

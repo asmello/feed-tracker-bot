@@ -11,8 +11,6 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from .schemas import Feed, Entry
 from .util import dget
 
-logger = logging.getLogger(__name__)
-
 
 def process_db_updates(bot, payload):
 	event = json.loads(payload)
@@ -22,7 +20,7 @@ def process_db_updates(bot, payload):
 			entry = event['entry']
 			feed = event['feed']
 			text = f"*{feed['title']}*: [{entry['title']}]({entry['link']})"
-			bot.send_message(chat_id=582104136, text=text, parse_mode='Markdown')
+			bot.send_message(chat_id=582104136, text=text, parse_mode=telegram.ParseMode.MARKDOWN)
 
 
 def db_monitor(bot):
@@ -43,36 +41,18 @@ def db_monitor(bot):
 					try:
 						process_db_updates(bot, notify.payload)
 					except Exception as e:
-						logger.exception(e)
+						logging.exception(e)
 	finally:
 		conn.close()
 
 
 def process_urls(context: telegram.ext.CallbackContext):
 
-	session = context.bot.get_session()
+	session = context.bot.db_session
 
-	for url in context.bot.get_feed_urls():
+	for feed in session.query(Feed).all():
 
-		data = feedparser.parse(url)
-
-		feed = session.query(Feed).filter_by(href=data.href).first()
-		if feed:
-			feed.title = dget(data, 'feed.title')
-			feed.link = dget(data, 'feed.link')
-			feed.subtitle = dget(data, 'feed.subtitle')
-			feed.ttl = dget(data, 'feed.ttl', int)
-		else:
-			feed = Feed(
-				title=dget(data, 'feed.title'),
-				link=dget(data, 'feed.link'), 
-				subtitle=dget(data, 'feed.subtitle'),
-				language=dget(data, 'feed.language'),
-				ttl=dget(data, 'feed.ttl', int),
-				href=dget(data, 'href')
-			)
-			session.add(feed)
-			session.flush()
+		data = feedparser.parse(feed.href)
 
 		insert_stmt = pg.insert(Entry.__table__)
 

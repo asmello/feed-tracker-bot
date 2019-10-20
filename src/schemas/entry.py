@@ -24,6 +24,9 @@ class Entry(Base):
 	def __repr__(self):
 		return f"<Entry(id='{self.id}', title='{self.title}', link='{self.link}')>"
 
+	def to_dict(self):
+		return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
 listen(Entry.__table__, 'after_create', DDL(
 	'''
 	CREATE OR REPLACE FUNCTION notify_entry_event() RETURNS TRIGGER AS $$

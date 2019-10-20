@@ -4,6 +4,8 @@ Base = declarative_base()
 
 from .entry import Entry
 from .feed import Feed
+from .user import User
+from .chat import Chat
 
 def initialize_db(engine):
 	Base.metadata.create_all(engine)

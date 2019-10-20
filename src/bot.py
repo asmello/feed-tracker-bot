@@ -25,7 +25,8 @@ class Bot(telegram.bot.Bot):
 	def send_message(self, *args, **kwargs):
 		return super().send_message(*args, **kwargs)
 
-	def get_session(self):
+	@property
+	def db_session(self):
 		return self._Session()
 
 	def get_feed_urls(self):

@@ -18,3 +18,6 @@ class Feed(Base):
 
 	def __repr__(self):
 		return f"<Feed(title='{self.title}', link='{self.link}')>"
+
+	def to_dict(self):
+		return {c.name: getattr(self, c.name) for c in self.__table__.columns}

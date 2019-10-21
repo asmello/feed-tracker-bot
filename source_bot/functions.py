@@ -10,7 +10,7 @@ from sqlalchemy import sql
 from sqlalchemy.dialects import postgresql as pg 
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-from .schemas import Feed, Entry, UserFeed
+from .schemas import Feed, Entry, User, UserFeed
 from .util import dget
 
 
@@ -102,3 +102,9 @@ def process_urls(context: telegram.ext.CallbackContext):
 		)
 
 		db_session.commit()
+
+
+def hello_world(context: telegram.ext.CallbackContext):
+	db_session = context.bot.db_session
+	for admin in db_session.query(User).filter_by(is_admin=True).all():
+		context.bot.send_message(chat_id=admin.db_id, text="I AM ALIVE!")

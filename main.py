@@ -13,7 +13,7 @@ from telegram.utils.request import Request
 from source_bot.bot import Bot
 from source_bot.commands import register_commands
 from source_bot.schemas import initialize_db, recreate_db
-from source_bot.methods import db_monitor, process_urls
+from source_bot.functions import db_monitor, process_urls, hello_world
 from source_bot.util import dget, validate_config, get_config, print_welcome
 
 
@@ -54,9 +54,10 @@ def main(args):
 
 	dispatcher.run_async(db_monitor, bot)
 
-	fetch_feeds_job = job_queue.run_repeating(process_urls, interval=60, first=0)
+	hello_world_job = job_queue.run_once(hello_world, when=1)
+	fetch_feeds_job = job_queue.run_repeating(process_urls, interval=60, first=5)
 
-	logging.info("Starting main event loop...")
+	logging.info("Starting event loop...")
 	updater.start_polling()
 	updater.idle()
 

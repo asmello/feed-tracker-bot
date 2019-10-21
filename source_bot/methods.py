@@ -15,6 +15,8 @@ from .util import dget
 
 
 def process_db_updates(bot, payload):
+	logging.debug("Processing database event with payload: %s", payload)
+
 	event = json.loads(payload)
 
 	if event['table'] == 'entries':
@@ -42,6 +44,7 @@ def process_db_updates(bot, payload):
 
 
 def db_monitor(bot):
+	logging.info("Starting database monitor...")
 	conn = bot.db_engine.raw_connection()
 	try:
 		conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
@@ -65,6 +68,7 @@ def db_monitor(bot):
 
 
 def process_urls(context: telegram.ext.CallbackContext):
+	logging.info("Processing feeds...")
 
 	db_session = context.bot.db_session
 

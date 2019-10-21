@@ -15,6 +15,7 @@ class User(Base):
 	last_name = Column(String)
 	username = Column(String, unique=True)
 	language_code = Column(String)
+	is_admin = Column(Boolean, default=False)
 
 	def __repr__(self):
 		return f"<User(username='{self.username}', is_bot='{self.is_bot}')>"

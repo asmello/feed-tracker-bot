@@ -1,4 +1,5 @@
 import os
+import inspect
 
 
 def dget(d, path, adapter=None, safe=False):
@@ -32,3 +33,18 @@ def get_config(args, config, setting_path):
 
 def validate_config(config):
 	assert dget(config, 'database.url', type) is str, "Database URL must be supplied."
+
+
+def print_welcome():
+	art = r"""
+	 _____                           ______       _   
+	/  ___|                          | ___ \     | |  
+	\ `--.  ___  _   _ _ __ ___ ___  | |_/ / ___ | |_ 
+	 `--. \/ _ \| | | | '__/ __/ _ \ | ___ \/ _ \| __|
+	/\__/ / (_) | |_| | | | (_|  __/ | |_/ / (_) | |_ 
+	\____/ \___/ \__,_|_|  \___\___| \____/ \___/ \__|
+
+	==================================================
+
+	"""
+	print(inspect.cleandoc(art))

@@ -9,15 +9,16 @@ from telegram.ext import CommandHandler
 from ..auth import admin
 
 
-def get_handler(updater):
+def reboot():
+	logging.info("Will reboot now!")
+	os.execl(sys.executable, sys.executable, *sys.argv)
 
-	def rebooter():
-		logging.info("Will reboot now!")
-		os.execl(sys.executable, sys.executable, *sys.argv)
+
+def get_handler():
 
 	@admin
-	def reboot(update: telegram.Update, context: telegram.ext.CallbackContext):
+	def _reboot(update: telegram.Update, context: telegram.ext.CallbackContext):
 		update.message.reply_text("Rebooting...")
-		Thread(target=rebooter).start()
+		Thread(target=reboot).start()
 
-	return CommandHandler('reboot', reboot)
+	return CommandHandler('reboot', _reboot)

@@ -50,7 +50,7 @@ def main(args):
 	job_queue = updater.job_queue
 	dispatcher = updater.dispatcher
 
-	register_commands(updater, dispatcher)
+	register_commands(dispatcher)
 
 	dispatcher.run_async(db_monitor, bot)
 

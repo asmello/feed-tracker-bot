@@ -1,0 +1,7 @@
+[packages]
+python-telegram-bot = "*"
+sqlalchemy = "*"
+feedparser = "*"
+psycopg2-binary = "*"
+requests = "*"
+beautifulsoup4 = "*"

@@ -1,3 +1,4 @@
+import logging
 import telegram
 from telegram.ext import CommandHandler
 
@@ -5,9 +6,11 @@ from sqlalchemy.dialects import postgresql as pg
 
 from ..schemas import User, Chat
 
+logger = logging.getLogger()
 
-def get_handler():
-	return CommandHandler('start', start)
+
+def get_handlers():
+	return [CommandHandler('start', start)]
 
 
 def start(update: telegram.Update, context: telegram.ext.CallbackContext):

@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sauce-bot
+
+  A bot that delivers your sauces
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+
+# Disabled because SAM currently does not support intrinsics properly
+# Parameters:
+#   TelegramWebhookSecret:
+#     NoEcho: true
+#     Description: The webhook URL secret component that only Telegram should know about
+#     Type: String
+#     MinLength: 16
+#     MaxLength: 64
+#     AllowedPattern: ^[A-Za-z0-9\-]+$
+
+Resources:
+  SauceBotWebhookAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Auth:
+        DefaultAuthorizer: SauceBotRequestAuthorizer
+        Authorizers:
+          SauceBotRequestAuthorizer:
+            FunctionPayloadType: REQUEST
+            FunctionArn: !GetAtt SauceBotRequestAuthorizerFunction.Arn
+            Identity:
+              QueryStrings:
+                - auth
+
+  SauceBotFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: src/
+      Handler: bot_events.handler
+      Runtime: python3.7
+      FunctionName: sauce-bot
+      Events:
+        Update:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            RestApiId: !Ref SauceBotWebhookAPI
+            Path: /webhook
+            Method: post
+      Environment:
+        Variables:
+          DATABASE_URL:
+          TELEGRAM_TOKEN:
+
+  AdminFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src/
+      Handler: admin.handler
+      Runtime: python3.7
+      FunctionName: sauce-bot-admin
+      Events:
+        Update:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SauceBotWebhookAPI
+            Path: /admin
+            Method: post
+      Environment:
+        Variables:
+          ADMIN_USERS:
+          DATABASE_URL:
+          TELEGRAM_TOKEN:
+
+  CrawlerFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src
+      Handler: crawler.handler
+      Runtime: python3.7
+      FunctionName: sauce-bot-crawler
+      Events:
+        Run:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+      Environment:
+        Variables:
+          DATABASE_URL:
+
+  SauceBotRequestAuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: auth.request_handler
+      Runtime: python3.7
+      FunctionName: sauce-bot-request-authorizer

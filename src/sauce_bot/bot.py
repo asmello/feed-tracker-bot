@@ -1,4 +1,3 @@
-import logging
 import telegram.bot
 from telegram.ext import messagequeue as mq
 
@@ -7,8 +6,6 @@ from sqlalchemy.orm import sessionmaker
 class Bot(telegram.bot.Bot):
 
 	def __init__(self, *args, mqueue=None, db_engine=None, **kwargs):
-		logging.info("Creating bot...")
-
 		super().__init__(*args, **kwargs)
 		self._is_messages_queued_default = True
 		self._msg_queue = mqueue or mq.MessageQueue()

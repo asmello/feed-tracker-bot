@@ -1,0 +1,23 @@
+{
+  "update_id": 12345678,
+  "message": {
+    "message_id": 2041,
+    "from": {
+      "id": 12345,
+      "is_bot": false,
+      "first_name": "André",
+      "last_name": "Mello",
+      "username": "asmello",
+      "language_code": "en"
+    },
+    "chat": {
+      "id": 12345,
+      "first_name": "André",
+      "last_name": "Mello",
+      "username": "asmello",
+      "type": "private"
+    },
+    "date": 1572052549,
+    "text": "test"
+  }
+}

@@ -6,12 +6,18 @@ Description: >
   A bot that delivers your sauces
 
 Parameters:
+  DBName:
+    Default: saucebotdb
+    Type: String
   DBUser:
     Default: saucer
     Type: String
   DBPassword:
     Default: changeme
     NoEcho: true
+    Type: String
+  LOGLEVEL:
+    Default: DEBUG
     Type: String
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
@@ -24,7 +30,8 @@ Globals:
       Variables:
         DATABASE_URL:
           # TODO: change to less privileged user
-          !Sub postgres://${DBUser}:${DBPassword}@${DB.Endpoint.Address}:${DB.Endpoint.Port}/prod
+          !Sub postgres://${DBUser}:${DBPassword}@${DB.Endpoint.Address}:${DB.Endpoint.Port}/${DBName}
+        LOG_LEVEL: !Ref LOGLEVEL
 
 Resources:
   VPC:
@@ -33,7 +40,6 @@ Resources:
       CidrBlock: 172.31.0.0/16
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      InstanceTenancy: default
   InternetGateway:
     Type: AWS::EC2::InternetGateway
   VPCGatewayAttachment:
@@ -98,7 +104,6 @@ Resources:
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
-          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -114,7 +119,7 @@ Resources:
   DB:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBName: saucebotdb
+      DBName: !Ref DBName
       AllocatedStorage: 5
       DBInstanceClass: db.t2.micro
       Engine: postgres

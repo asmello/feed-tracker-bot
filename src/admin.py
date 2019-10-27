@@ -19,6 +19,7 @@ DB_ENGINE = create_engine(DATABASE_URL, echo=LOG_LEVEL <= logging.DEBUG)
 ADMIN_USERS = [int(x) for x in os.environ["ADMIN_USERS"].split(',')]
 
 BOT = Bot(token=os.environ["TELEGRAM_TOKEN"])
+logger.info("Setup complete.")
 
 
 def initialize_db():
@@ -34,8 +35,9 @@ def initialize_db():
 
 def handler(event, context):
 	payload = json.loads(event['body'])
+	logger.debug("Received payload %s", payload)
 
-	if not 'action' in payload:
+	if 'action' not in payload:
 		logger.info("Received payload %s", payload)
 		return {
 			"isBase64Encoded": False,
@@ -55,7 +57,7 @@ def handler(event, context):
 		Base.metadata.drop_all(DB_ENGINE)
 		initialize_db()
 	elif payload['action'] == 'SETUP_WEBHOOK':
-		if not 'url' in payload:
+		if 'url' not in payload:
 			return {
 				"isBase64Encoded": False,
 				"statusCode": 400,

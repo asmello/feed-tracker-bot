@@ -23,6 +23,7 @@ TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 BOT = Bot(token=TELEGRAM_TOKEN, db_engine=DB_ENGINE, request=Request(con_pool_size=8))
 DISPATCHER = Dispatcher(BOT, None, workers=0, use_context=True)
 register_commands(DISPATCHER)
+logger.info("Setup complete.")
 
 
 def handler(event, context):

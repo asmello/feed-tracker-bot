@@ -21,6 +21,7 @@ DB_ENGINE = create_engine(DATABASE_URL, echo=LOG_LEVEL <= logging.DEBUG)
 
 DB_Session = sessionmaker()
 DB_Session.configure(bind=DB_ENGINE)
+logger.info("Setup complete.")
 
 
 def handler(event, context):

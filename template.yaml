@@ -51,8 +51,8 @@ Resources:
             Method: post
       Environment:
         Variables:
-          DATABASE_URL:
-          TELEGRAM_TOKEN:
+          DATABASE_URL: ''
+          TELEGRAM_TOKEN: ''
 
   AdminFunction:
     Type: AWS::Serverless::Function 
@@ -70,9 +70,9 @@ Resources:
             Method: post
       Environment:
         Variables:
-          ADMIN_USERS:
-          DATABASE_URL:
-          TELEGRAM_TOKEN:
+          ADMIN_USERS: ''
+          DATABASE_URL: ''
+          TELEGRAM_TOKEN: ''
 
   CrawlerFunction:
     Type: AWS::Serverless::Function 
@@ -88,7 +88,7 @@ Resources:
             Schedule: rate(1 minute)
       Environment:
         Variables:
-          DATABASE_URL:
+          DATABASE_URL: ''
 
   SauceBotRequestAuthorizerFunction:
     Type: AWS::Serverless::Function

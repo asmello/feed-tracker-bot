@@ -8,6 +8,7 @@ from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.orm import sessionmaker
 
 from sauce_bot.schemas import Feed, Entry
+from sauce_bot.util import dget
 
 
 LOG_LEVEL = getattr(logging, os.environ.get("LOG_LEVEL", 'INFO'))
@@ -16,7 +17,7 @@ logger.setLevel(LOG_LEVEL)
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 logger.info("Connecting to database %s...", DATABASE_URL)
-DB_ENGINE = create_engine(DATABASE_URL, echo=LOG_LEVEL <= loggin.DEBUG)
+DB_ENGINE = create_engine(DATABASE_URL, echo=LOG_LEVEL <= logging.DEBUG)
 
 DB_Session = sessionmaker()
 DB_Session.configure(bind=DB_ENGINE)

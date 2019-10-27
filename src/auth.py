@@ -8,15 +8,16 @@ logger.setLevel(LOG_LEVEL)
 
 
 def request_handler(event, context):
+	logger.info("Received event %s for context %s", event, context)
 	return {
-		"principalId": 'me',
+		"principalId": 'anyone',
 		"policyDocument": {
 			"Version": "2012-10-17",
 			"Statement": [
 				{
 					"Action": "execute-api:Invoke",
 					"Effect": "Allow",
-					"Resource": "arn:aws:execute-api:*"
+					"Resource": event['methodArn']
 				}
 			]
 		}

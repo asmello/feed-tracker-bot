@@ -5,90 +5,227 @@ Description: >
 
   A bot that delivers your sauces
 
+Parameters:
+  DBUser:
+    Default: saucer
+    Type: String
+  DBPassword:
+    Default: changeme
+    NoEcho: true
+    Type: String
+
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
     Timeout: 3
+    CodeUri: src
+    Runtime: python3.7
+    Environment:
+      Variables:
+        DATABASE_URL:
+          # TODO: change to less privileged user
+          !Sub postgres://${DBUser}:${DBPassword}@${DB.Endpoint.Address}:${DB.Endpoint.Port}/prod
 
 Resources:
-  SauceBotAPI:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 172.31.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: eu-west-2a
+      VpcId: !Ref VPC
+      CidrBlock: 172.31.0.0/20
+      MapPublicIpOnLaunch: true
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: eu-west-2b
+      VpcId: !Ref VPC
+      CidrBlock: 172.31.16.0/20
+      MapPublicIpOnLaunch: true
+  SubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: eu-west-2c
+      VpcId: !Ref VPC
+      CidrBlock: 172.31.32.0/20
+      MapPublicIpOnLaunch: true
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  InternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref RouteTable
+  SubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref SubnetA
+  SubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref SubnetB
+  SubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref SubnetC
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: sauce-bot-sg
+      GroupDescription: "Security Group for SauceBot traffic"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Subnet Group for Sauce Bot database"
+      DBSubnetGroupName: sauce-bot-db-subnet-g
+      SubnetIds:
+        - !Ref SubnetA
+        - !Ref SubnetB
+        - !Ref SubnetC
+  DB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBName: saucebotdb
+      AllocatedStorage: 5
+      DBInstanceClass: db.t2.micro
+      Engine: postgres
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref SecurityGroup
+  API:
     Type: AWS::Serverless::Api
     Properties:
-      StageName: Prod
+      StageName: prod
       Auth:
-        DefaultAuthorizer: SauceBotRequestAuthorizer
+        DefaultAuthorizer: RequestAuthorizer
         Authorizers:
-          SauceBotRequestAuthorizer:
+          RequestAuthorizer:
             FunctionPayloadType: TOKEN
-            FunctionArn: !GetAtt SauceBotRequestAuthorizerFunction.Arn
-          SauceBotWebookRequestAuthorizer:
+            FunctionArn: !GetAtt AuthorizerFunction.Arn
+          WebookRequestAuthorizer:
             FunctionPayloadType: REQUEST
-            FunctionArn: !GetAtt SauceBotRequestAuthorizerFunction.Arn
+            FunctionArn: !GetAtt AuthorizerFunction.Arn
             Identity:
               QueryStrings:
                 - token  # ?token=<token>
-
   SauceBotFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: src/
       Handler: bot_events.handler
-      Runtime: python3.7
-      FunctionName: sauce-bot
+      FunctionName: sauce-bot-fn
       Events:
         Update:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
-            RestApiId: !Ref SauceBotAPI
+            RestApiId: !Ref API
             Auth:
-              Authorizer: SauceBotWebookRequestAuthorizer
+              Authorizer: WebookRequestAuthorizer
             Path: /webhook
             Method: post
+      Policies:
+        - VPCAccessPolicy: {}
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref SecurityGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
       Environment:
         Variables:
-          DATABASE_URL: ''
           TELEGRAM_TOKEN: ''
-
   AdminFunction:
     Type: AWS::Serverless::Function 
     Properties:
-      CodeUri: src/
       Handler: admin.handler
-      Runtime: python3.7
-      FunctionName: sauce-bot-admin
+      FunctionName: sauce-bot-admin-fn
       Events:
         Update:
           Type: Api
           Properties:
-            RestApiId: !Ref SauceBotAPI
+            RestApiId: !Ref API
             Path: /admin
             Method: post
+      Policies:
+        - VPCAccessPolicy: {}
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref SecurityGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
       Environment:
         Variables:
           ADMIN_USERS: ''
-          DATABASE_URL: ''
           TELEGRAM_TOKEN: ''
-
   CrawlerFunction:
     Type: AWS::Serverless::Function 
     Properties:
-      CodeUri: src
       Handler: crawler.handler
-      Runtime: python3.7
-      FunctionName: sauce-bot-crawler
+      FunctionName: sauce-bot-crawler-fn
       Events:
         Run:
           Type: Schedule
           Properties:
             Schedule: rate(1 minute)
-      Environment:
-        Variables:
-          DATABASE_URL: ''
-
-  SauceBotRequestAuthorizerFunction:
+      Policies:
+        - VPCAccessPolicy: {}
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref SecurityGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+  AuthorizerFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/
       Handler: auth.request_handler
       Runtime: python3.7
-      FunctionName: sauce-bot-request-authorizer
+      FunctionName: sauce-bot-authorizer-fn
+      Policies:
+        - VPCAccessPolicy: {}
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref SecurityGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+
+Outputs:
+  API:
+    Description: "Telegram Bot Webhook"
+    Value: !Sub "https://${API}.execute-api.${AWS::Region}.amazonaws.com/prod/webhook?token=nOtSeCrEt"

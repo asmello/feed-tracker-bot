@@ -141,10 +141,10 @@ def _extract_feed_links(url):
 		elif len(links) == 1:
 			return (links[0]['href'],), None
 		return links, None
-	elif doc_type == 'application/atom+xml' or doc_type == 'application/rss+xml':
+	elif doc_type in ('application/rss+xml', 'application/atom+xml', 'text/xml'):
 		return (url,), None
 	else:
-		xray_recorder.put_annotation("content-type", response.headers['content-type'])
+		xray_recorder.put_annotation("contentType", response.headers['content-type'])
 		return None, "unrecognized content"
 
 

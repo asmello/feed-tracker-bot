@@ -1,6 +1,10 @@
 import os
 import logging
 
+from aws_xray_sdk.core import xray_recorder, patch
+
+patch(['requests'])
+
 
 LOG_LEVEL = getattr(logging, os.environ.get("LOG_LEVEL", 'INFO'))
 logger = logging.getLogger()

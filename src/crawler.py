@@ -10,6 +10,10 @@ from sqlalchemy.orm import sessionmaker
 from sauce_bot.schemas import Feed, Entry
 from sauce_bot.util import dget
 
+from aws_xray_sdk.core import xray_recorder, patch
+
+patch(['requests'])
+
 
 LOG_LEVEL = getattr(logging, os.environ.get("LOG_LEVEL", 'INFO'))
 logger = logging.getLogger()
@@ -59,3 +63,14 @@ def handler(event, context):
 		)
 
 		db_session.commit()
+
+	return {
+		"isBase64Encoded": False,
+		"statusCode": 200,
+		"headers": {
+			'Content-Type': 'application/json'
+		},
+		"body": json.dumps({
+			"message": "OK"
+		})
+	}

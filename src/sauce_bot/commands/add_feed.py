@@ -11,8 +11,12 @@ from sqlalchemy.dialects import postgresql as pg
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ConversationHandler, MessageHandler, CommandHandler, Filters
 
+from aws_xray_sdk.core import xray_recorder, patch
+
 from ..schemas import Feed, UserFeed
 from ..util import dget
+
+patch(['requests'])
 
 PENDING_URL = 1
 PAGE_SIZE = 4
@@ -32,6 +36,7 @@ def get_handlers():
 	]
 
 
+@xray_recorder.capture("enter_handler")
 def enter(update: telegram.Update, context: telegram.ext.CallbackContext):
 	args = context.args
 
@@ -46,11 +51,13 @@ def enter(update: telegram.Update, context: telegram.ext.CallbackContext):
 	return ConversationHandler.END
 
 
+@xray_recorder.capture("cancel_handler")
 def cancel(update: telegram.Update, context: telegram.ext.CallbackContext):
 	update.message.reply_text("Canceling the new feed entry.")
 	return ConversationHandler.END
 
 
+@xray_recorder.capture("pending_url_handler")
 def pending_url(update: telegram.Update, context: telegram.ext.CallbackContext):
 	urls = list(update.message.parse_entities(types='url').values())
 	
@@ -64,6 +71,7 @@ def pending_url(update: telegram.Update, context: telegram.ext.CallbackContext):
 	return _process(urls[0], update, context)
 
 
+@xray_recorder.capture("process_subfunction")
 def _process(url, update, context):
 	feed_links, error = _extract_feed_links(url)
 
@@ -103,6 +111,7 @@ def _process(url, update, context):
 	return ConversationHandler.END
 
 
+@xray_recorder.capture("extract_feed_links_subfunction")
 def _extract_feed_links(url):
 	logger.info("Fetching URL: %s", url)
 	headers = {
@@ -110,7 +119,11 @@ def _extract_feed_links(url):
 		'User-Agent': "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
 					  "(KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36"
 	}
-	response = requests.get(url, headers=headers)
+	try:
+		response = requests.get(url, headers=headers)
+	except requests.exceptions.MissingSchema:
+		url = "https://" + url
+		response = requests.get(url, headers=headers)
 	if response.status_code != requests.codes.ok:
 		logger.debug("Server response: %s", response.text)
 		return None, f"server responded with {response.status_code}"
@@ -131,8 +144,11 @@ def _extract_feed_links(url):
 	elif doc_type == 'application/atom+xml' or doc_type == 'application/rss+xml':
 		return (url,), None
 	else:
+		xray_recorder.put_annotation("content-type", response.headers['content-type'])
 		return None, "unrecognized content"
 
+
+@xray_recorder.capture("add_subfunction")
 def _add(url, db_session, user):
 	feed = (
 		db_session.query(Feed)

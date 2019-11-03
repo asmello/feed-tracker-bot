@@ -26,38 +26,3 @@ class Entry(Base):
 
 	def to_dict(self):
 		return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-
-listen(Entry.__table__, 'after_create', DDL(
-	'''
-	CREATE OR REPLACE FUNCTION notify_entry_event() RETURNS TRIGGER AS $$
-		DECLARE
-			record RECORD;
-			parent RECORD;
-			payload JSON;
-		BEGIN
-			IF (TG_OP = 'DELETE') THEN
-				record = OLD;
-			ELSE
-				record = NEW;
-			END IF;
-
-			SELECT * INTO STRICT parent FROM feeds WHERE db_id = record.feed_id;
-
-			payload = json_build_object(
-				'table', TG_TABLE_NAME,
-				'action', TG_OP,
-				'entry', row_to_json(record),
-				'feed', row_to_json(parent)
-			);
-
-			PERFORM pg_notify('events', payload::text);
-
-			RETURN NULL;
-		END;
-	$$ LANGUAGE plpgsql;
-
-	CREATE TRIGGER notify_entry_event_trigger
-	AFTER INSERT OR UPDATE OR DELETE ON entries
-		FOR EACH ROW EXECUTE PROCEDURE notify_entry_event();
-	'''
-))

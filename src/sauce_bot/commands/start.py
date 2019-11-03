@@ -2,9 +2,13 @@ import logging
 import telegram
 from telegram.ext import CommandHandler
 
-from sqlalchemy.dialects import postgresql as pg 
+from sqlalchemy.dialects import postgresql as pg
+
+from aws_xray_sdk.core import xray_recorder, patch
 
 from ..schemas import User, Chat
+
+patch(['requests'])
 
 logger = logging.getLogger()
 
@@ -13,6 +17,7 @@ def get_handlers():
 	return [CommandHandler('start', start)]
 
 
+@xray_recorder.capture("start_handler")
 def start(update: telegram.Update, context: telegram.ext.CallbackContext):
 	bot = context.bot
 	session = bot.db_session
@@ -21,6 +26,7 @@ def start(update: telegram.Update, context: telegram.ext.CallbackContext):
 
 	# Do nothing if chat already exists
 	if session.query(Chat).get(chat.id):
+		bot.send_message(chat_id=chat.id, text=f"You are already registered, {user.full_name}!")
 		return
 
 	# Upsert user to database

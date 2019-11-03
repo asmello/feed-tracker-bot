@@ -7,9 +7,12 @@ from telegram import Update
 from telegram.ext import Dispatcher
 from telegram.utils.request import Request
 
+from aws_xray_sdk.core import xray_recorder, patch
+
 from sauce_bot.bot import Bot
 from sauce_bot.commands import register_commands
 
+patch(['requests'])
 
 LOG_LEVEL = getattr(logging, os.environ.get("LOG_LEVEL", 'INFO'))
 logger = logging.getLogger()

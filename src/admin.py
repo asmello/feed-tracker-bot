@@ -1,12 +1,15 @@
 from sqlalchemy import create_engine
 from telegram import Bot
 from telegram.utils.request import Request
+from aws_xray_sdk.core import xray_recorder, patch
 
 import os
 import json
 import logging
 
 from sauce_bot.schemas import Base, User
+
+patch(['requests'])
 
 
 LOG_LEVEL = getattr(logging, os.environ.get("LOG_LEVEL", 'INFO'))
@@ -22,6 +25,7 @@ BOT = Bot(token=os.environ["TELEGRAM_TOKEN"])
 logger.info("Setup complete.")
 
 
+@xray_recorder.capture("initialize_db")
 def initialize_db():
 	Base.metadata.create_all(DB_ENGINE)
 

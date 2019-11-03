@@ -10,8 +10,12 @@ from telegram.ext import (
 	ConversationHandler, MessageHandler, CommandHandler, CallbackQueryHandler, Filters
 )
 
+from aws_xray_sdk.core import xray_recorder, patch
+
 from ..schemas import Feed, UserFeed
 from ..util import dget
+
+patch(['requests'])
 
 PENDING_URL = 1
 PAGE_SIZE = 4
@@ -32,11 +36,13 @@ def get_handlers():
 	)
 
 
+@xray_recorder.capture("cancel_handler")
 def cancel(update: telegram.Update, context: telegram.ext.CallbackContext):
 	update.message.reply_text("Alright, no feeds removed.")
 	return ConversationHandler.END
 
 
+@xray_recorder.capture("enter_handler")
 def enter(update: telegram.Update, context: telegram.ext.CallbackContext):
 	args = context.args
 
@@ -69,6 +75,7 @@ def enter(update: telegram.Update, context: telegram.ext.CallbackContext):
 	return ConversationHandler.END
 
 
+@xray_recorder.capture("forward_handler")
 def forward(update: telegram.Update, context: telegram.ext.CallbackContext):
 	query = update.callback_query
 	chat = update.effective_chat
@@ -106,6 +113,7 @@ def forward(update: telegram.Update, context: telegram.ext.CallbackContext):
 	query.edit_message_reply_markup(reply_markup)
 
 
+@xray_recorder.capture("back_handler")
 def back(update: telegram.Update, context: telegram.ext.CallbackContext):
 	query = update.callback_query
 	chat = update.effective_chat
@@ -143,6 +151,7 @@ def back(update: telegram.Update, context: telegram.ext.CallbackContext):
 	query.edit_message_reply_markup(reply_markup)
 
 
+@xray_recorder.capture("remove_handler")
 def remove(update: telegram.Update, context: telegram.ext.CallbackContext):
 	query = update.callback_query
 	chat = update.effective_chat

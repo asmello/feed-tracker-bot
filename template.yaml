@@ -13,12 +13,17 @@ Parameters:
     Default: saucer
     Type: String
   DBPassword:
-    Default: changeme
     NoEcho: true
     Type: String
   LOGLEVEL:
     Default: DEBUG
     Type: String
+  TelegramToken:
+    NoEcho: true
+    Type: String
+  AdminUsers:
+    Type: List<Number>
+
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
@@ -40,61 +45,98 @@ Resources:
       CidrBlock: 172.31.0.0/16
       EnableDnsSupport: true
       EnableDnsHostnames: true
+
   InternetGateway:
     Type: AWS::EC2::InternetGateway
+
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
-  SubnetA:
+
+  PublicSubnet:
     Type: AWS::EC2::Subnet
     Properties:
-      AvailabilityZone: eu-west-2a
+      AvailabilityZone: !Select [0, !GetAZs ""]
       VpcId: !Ref VPC
-      CidrBlock: 172.31.0.0/20
+      CidrBlock: 172.31.0.0/24
       MapPublicIpOnLaunch: true
-  SubnetB:
+
+  PrivateSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
-      AvailabilityZone: eu-west-2b
+      AvailabilityZone: !Select [0, !GetAZs ""]
       VpcId: !Ref VPC
-      CidrBlock: 172.31.16.0/20
-      MapPublicIpOnLaunch: true
-  SubnetC:
+      CidrBlock: 172.31.3.0/24
+      MapPublicIpOnLaunch: false
+
+  PrivateSubnetB:
     Type: AWS::EC2::Subnet
     Properties:
-      AvailabilityZone: eu-west-2c
+      AvailabilityZone: !Select [1, !GetAZs ""]
       VpcId: !Ref VPC
-      CidrBlock: 172.31.32.0/20
-      MapPublicIpOnLaunch: true
-  RouteTable:
+      CidrBlock: 172.31.2.0/24
+      MapPublicIpOnLaunch: false
+
+  PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
-  InternetRoute:
+
+  PublicRoute:
     Type: AWS::EC2::Route
     DependsOn: VPCGatewayAttachment
     Properties:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
-      RouteTableId: !Ref RouteTable
-  SubnetARouteTableAssociation:
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref RouteTable
-      SubnetId: !Ref SubnetA
-  SubnetBRouteTableAssociation:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    DependsOn: NATPublicIP
+    Properties:
+      AllocationId: !GetAtt NATPublicIP.AllocationId
+      SubnetId: !Ref PublicSubnet
+
+  NATPublicIP:
+    Type: AWS::EC2::EIP
+    DependsOn: VPC
+    Properties:
+      Domain: vpc
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetARouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref RouteTable
-      SubnetId: !Ref SubnetB
-  SubnetCRouteTableAssociation:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetA
+
+  PrivateSubnetBRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref RouteTable
-      SubnetId: !Ref SubnetC
-  SecurityGroup:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetB
+
+  LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: sauce-bot-sg
@@ -104,18 +146,32 @@ Resources:
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
+          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
+
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: sauce-bot-db-sg
+      GroupDescription: "Security Group for SauceBot database"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: "Subnet Group for Sauce Bot database"
       DBSubnetGroupName: sauce-bot-db-subnet-g
       SubnetIds:
-        - !Ref SubnetA
-        - !Ref SubnetB
-        - !Ref SubnetC
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+
   DB:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -127,7 +183,8 @@ Resources:
       MasterUserPassword: !Ref DBPassword
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
-        - !Ref SecurityGroup
+        - !Ref DBSecurityGroup
+
   API:
     Type: AWS::Serverless::Api
     Properties:
@@ -144,6 +201,7 @@ Resources:
             Identity:
               QueryStrings:
                 - token  # ?token=<token>
+
   SauceBotFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
@@ -158,18 +216,26 @@ Resources:
               Authorizer: WebookRequestAuthorizer
             Path: /webhook
             Method: post
+      Tracing: Active
       Policies:
         - VPCAccessPolicy: {}
+        - Version: "2012-10-17"
+          Statement:
+            - Action:
+              - xray:PutTraceSegments
+              - xray:PutTelemetryRecords
+              Effect: Allow
+              Resource: "*"
       VpcConfig:
         SecurityGroupIds:
-          - !Ref SecurityGroup
+          - !Ref LambdaSecurityGroup
         SubnetIds:
-          - !Ref SubnetA
-          - !Ref SubnetB
-          - !Ref SubnetC
+          - !Ref PrivateSubnetA
+          - !Ref PrivateSubnetB
       Environment:
         Variables:
-          TELEGRAM_TOKEN: ''
+          TELEGRAM_TOKEN: !Ref TelegramToken
+
   AdminFunction:
     Type: AWS::Serverless::Function 
     Properties:
@@ -184,17 +250,25 @@ Resources:
             Method: post
       Policies:
         - VPCAccessPolicy: {}
+        - Version: "2012-10-17"
+          Statement:
+            - Action:
+              - xray:PutTraceSegments
+              - xray:PutTelemetryRecords
+              Effect: Allow
+              Resource: "*"
+      Tracing: Active
       VpcConfig:
         SecurityGroupIds:
-          - !Ref SecurityGroup
+          - !Ref LambdaSecurityGroup
         SubnetIds:
-          - !Ref SubnetA
-          - !Ref SubnetB
-          - !Ref SubnetC
+          - !Ref PrivateSubnetA
+          - !Ref PrivateSubnetB
       Environment:
         Variables:
-          ADMIN_USERS: ''
-          TELEGRAM_TOKEN: ''
+          ADMIN_USERS: !Join [",", !Ref AdminUsers]
+          TELEGRAM_TOKEN: !Ref TelegramToken
+
   CrawlerFunction:
     Type: AWS::Serverless::Function 
     Properties:
@@ -207,13 +281,21 @@ Resources:
             Schedule: rate(1 minute)
       Policies:
         - VPCAccessPolicy: {}
+        - Version: "2012-10-17"
+          Statement:
+            - Action:
+              - xray:PutTraceSegments
+              - xray:PutTelemetryRecords
+              Effect: Allow
+              Resource: "*"
+      Tracing: Active
       VpcConfig:
         SecurityGroupIds:
-          - !Ref SecurityGroup
+          - !Ref LambdaSecurityGroup
         SubnetIds:
-          - !Ref SubnetA
-          - !Ref SubnetB
-          - !Ref SubnetC
+          - !Ref PrivateSubnetA
+          - !Ref PrivateSubnetB
+
   AuthorizerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -222,13 +304,20 @@ Resources:
       FunctionName: sauce-bot-authorizer-fn
       Policies:
         - VPCAccessPolicy: {}
+        - Version: "2012-10-17"
+          Statement:
+            - Action:
+              - xray:PutTraceSegments
+              - xray:PutTelemetryRecords
+              Effect: Allow
+              Resource: "*"
+      Tracing: Active
       VpcConfig:
         SecurityGroupIds:
-          - !Ref SecurityGroup
+          - !Ref LambdaSecurityGroup
         SubnetIds:
-          - !Ref SubnetA
-          - !Ref SubnetB
-          - !Ref SubnetC
+          - !Ref PrivateSubnetA
+          - !Ref PrivateSubnetB
 
 Outputs:
   API:
